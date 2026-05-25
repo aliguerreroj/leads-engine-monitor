@@ -1,101 +1,133 @@
-import Image from "next/image";
+import { CampaignsResponse, Campaign, CampaignStatus } from "@/types/campaign";
 
-export default function Home() {
+const STATUS_STYLES: Record<CampaignStatus, string> = {
+  ACTIVE: "bg-green-100 text-green-800",
+  PAUSED: "bg-yellow-100 text-yellow-800",
+  COMPLETED: "bg-blue-100 text-blue-800",
+  DRAFT: "bg-gray-100 text-gray-600",
+};
+
+function StatusBadge({ status }: { status: CampaignStatus }) {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[status]}`}
+    >
+      {status.charAt(0) + status.slice(1).toLowerCase()}
+    </span>
+  );
+}
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+function UtilizationBar({ value }: { value: number }) {
+  const capped = Math.min(value, 100);
+  const color =
+    value >= 90 ? "bg-red-500" : value >= 60 ? "bg-yellow-400" : "bg-green-500";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-2 w-24 rounded-full bg-gray-200">
+        <div
+          className={`h-2 rounded-full ${color}`}
+          style={{ width: `${capped}%` }}
+        />
+      </div>
+      <span className="text-sm text-gray-600">{value}%</span>
     </div>
+  );
+}
+
+async function getCampaigns(): Promise<CampaignsResponse> {
+  const res = await fetch("http://localhost:3000/api/campaigns", {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch campaigns");
+  return res.json();
+}
+
+export default async function Home() {
+  const { data: campaigns, total } = await getCampaigns();
+
+  const totalBudget = campaigns.reduce((sum, c) => sum + c.budget, 0);
+  const totalSpend = campaigns.reduce((sum, c) => sum + c.spend, 0);
+  const totalLeads = campaigns.reduce((sum, c) => sum + c.leads, 0);
+  const activeCampaigns = campaigns.filter((c) => c.status === "ACTIVE").length;
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-8">
+      <div className="mx-auto max-w-7xl">
+
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Campaign Performance Monitor
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            LeadsEngine · {total} campaigns tracked
+          </p>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[
+            { label: "Active Campaigns", value: activeCampaigns },
+            { label: "Total Budget", value: `$${totalBudget.toLocaleString()}` },
+            { label: "Total Spend", value: `$${totalSpend.toLocaleString()}` },
+            { label: "Total Leads", value: totalLeads.toLocaleString() },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                {label}
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50">
+              <tr>
+                {["Campaign", "Status", "Budget", "Spend", "Utilization", "Leads", "Cost / Lead"].map(
+                  (col) => (
+                    <th
+                      key={col}
+                      className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400"
+                    >
+                      {col}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {campaigns.map((c: Campaign) => (
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                    {c.name}
+                  </td>
+                  <td className="px-6 py-4">
+                    <StatusBadge status={c.status} />
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    ${c.budget.toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    ${c.spend.toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4">
+                    <UtilizationBar value={c.budgetUtilization} />
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {c.leads.toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {c.costPerLead !== null ? `$${c.costPerLead}` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
   );
 }
